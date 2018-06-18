@@ -74,11 +74,14 @@ import org.osgi.resource.Wire;
 
 public class BundleWiringImpl implements BundleWiring
 {
+    public final static String PREFER_BUNDLE_CLASSES_PROPERTY = "felix.framework.preferbundleclasses";
+
     public final static int LISTRESOURCES_DEBUG = 1048576;
 
     public final static int EAGER_ACTIVATION = 0;
     public final static int LAZY_ACTIVATION = 1;
 
+    private final boolean m_preferBundleClasses = Boolean.parseBoolean(System.getProperty(PREFER_BUNDLE_CLASSES_PROPERTY, "false"));
     private final Logger m_logger;
     private final Map m_configMap;
     private final StatefulResolver m_resolver;
@@ -1478,10 +1481,13 @@ public class BundleWiringImpl implements BundleWiring
                     }
                 }
 
-                // Look in the revision's imports. Note that the search may
-                // be aborted if this method throws an exception, otherwise
-                // it continues if a null is returned.
-                result = searchImports(pkgName, name, isClass);
+                // Search available imports first, unless directed to prefer classes bundled inside the plugin.
+                if (!m_preferBundleClasses) {
+                    // Look in the revision's imports. Note that the search may
+                    // be aborted if this method throws an exception, otherwise
+                    // it continues if a null is returned.
+                    result = searchImports(pkgName, name, isClass);
+                }
 
                 // If not found, try the revision's own class path.
                 if (result == null)
@@ -1503,6 +1509,11 @@ public class BundleWiringImpl implements BundleWiring
                     else
                     {
                         result = (Object) m_revision.getResourceLocal(name);
+                    }
+
+                    // If the imports haven't been searched yet and we haven't found the resource, try them now.
+                    if (m_preferBundleClasses && result == null) {
+                        result = searchImports(pkgName, name, isClass);
                     }
 
                     // If still not found, then try the revision's dynamic imports.
